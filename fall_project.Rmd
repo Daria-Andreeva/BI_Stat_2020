@@ -1,0 +1,640 @@
+---
+title: "Project 1 “Насколько стара мидия”"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+```{r setup, include=FALSE, warning=FALSE}
+# Настройки R и knitr ----------------------------
+# опции R
+options(width = 70, scipen = 16, digits = 3) 
+# опции чанков по умолчанию
+knitr::opts_chunk$set(tidy = FALSE, # сохранять форматирование кода
+               fig.width = 24, # ширина рисунков по умолчанию
+               fig.height = 16)  # высота рисунков по умолчанию
+```
+
+##Введение
+Проведение описательной статистики.
+
+##Материалы и методы
+
+Расчеты проведены в среде R с использованием пакета pwr [10]. Для построения графиков использовали пакет ggplot2 [11].
+
+
+## Task 1. Open datasets and merge them.
+Calculation
+```{r include = FALSE} 
+
+#set packages, that will be needed
+library(ggplot2)
+library(data.table)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(gridExtra)
+library(zoo)
+library(corrplot)
+library(RColorBrewer)
+```
+
+Open files (please write your dir)
+```{r}
+#path = "~/home/daria/Bioinf/statistics_r/data/Data/"
+
+read_files <- function(link){
+setwd(link)
+file_list <- list.files(path=link)
+dataset <- data.frame()
+for (i in 1:length(file_list)){
+temp_data <- fread(file_list[i], stringsAsFactors = F)
+dataset <- rbindlist(list(dataset, temp_data), use.names = T)
+}
+return(dataset)
+}
+
+# Use function to read files in our dir
+mol_data <- read_files('/home/daria/Bioinf/statistics_r/data/Data/')
+```
+
+## Task 2. EDAnalise.
+
+We need to look at the structure of the resulting dataset and identify various errors in the data set or collection.
+
+```{r}
+#checking structure of table
+str(mol_data)
+```
+
+We can see that the Rings and Length columns have a non-numeric data type, and the Sex column has a long and inconvenient name.
+
+```{r include = FALSE}
+#rename Sex
+mol_data <- rename(mol_data, Sex = `Sex (1 – male, 2 – female, 3 – uvenil)`)
+## check if everything is numbers for rings
+unique(mol_data$Rings)
+#find the 'nine'
+which(mol_data$Rings == 'nine')
+#change value 
+mol_data$Rings[3372] <- 9
+
+#### check if everything is numbers for others
+unique(mol_data$Length) #there is one NA, it`ll be renamed automatically
+
+unique(mol_data$Sex) #check unique Sex values
+which(mol_data$Sex == 'three') #change three
+mol_data$Sex[618] <- 3
+which(mol_data$Sex == 'one') #change three
+mol_data$Sex[1374] <- 1 #changing 
+which(mol_data$Sex == 'male')
+mol_data$Sex[1399] <- 1 #changing 
+unique(mol_data$Sex) #check to be sure, that we`ve changed everything
+
+unique(mol_data$Diameter)
+unique(mol_data$Height)
+unique(mol_data$Whole_weight)
+unique(mol_data$Shucked_weight) #there are too much, but we could see later that
+#there are only numbers
+unique(mol_data$Viscera_weight) #there are too much, but we could see later that
+#there are only numbers
+unique(mol_data$Shell_weight)
+
+#we see that length and rings are not numeric, and do sex as factor
+mol_data$Length <- as.numeric(mol_data$Length)
+mol_data$Rings <- as.numeric(mol_data$Rings)
+mol_data$Sex <- as.factor(mol_data$Sex)
+```
+
+We have Sex as factor with 3 levels and other parameters as numeric.
+```{r}
+#check structure again
+str(mol_data)
+```
+
+Now we need to find and all NAs. 
+```{r}
+find_na <- data.frame(sum(is.na(mol_data)), sum(is.na(mol_data$Sex)), 
+                      sum(is.na(mol_data$Rings)), sum(is.na(mol_data$Length)), 
+                      sum(is.na(mol_data$Diameter)), sum(is.na(mol_data$Height)), 
+                      sum(is.na(mol_data$Whole_weight)), sum(is.na(mol_data$Shucked_weight)),
+                      sum(is.na(mol_data$Viscera_weight)), sum(is.na(mol_data$Shell_weight)))
+```
+We see that there are 21 NAs. We can replace them with mean, median, or mode, depending on the shape of the distribution. On the other hand, we have only 21 NA in more than 4100 observations, which constitute only 0.5% of the total sample. Thus I decided to omit them.
+```{r include = FALSE}
+#Delete all rows with NAs in them
+#mol_data <- mol_data %>% na.omit(mol_data) - this is not working
+sum(is.na(mol_data))
+new_mol <- na.omit(mol_data)
+```
+
+
+###Now we can go further and examine the shape of the distribution and find outliers.
+```{r include = TRUE}
+#let`s do summary of all dataset
+summary(new_mol)
+```
+
+Start with Rings parameter. 
+```{r echo=TRUE, message=TRUE, warning=TRUE, paged.print=TRUE}
+
+###R does not have a standard in-built function to calculate mode. So we create a user function to calculate mode of a data set in R. This function takes the vector as input and gives the mode value as output.
+# Create the function.
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+#find measures of central tendency
+stat_rings <- data.frame(Mean = mean(new_mol$Rings),
+                        Mode = getmode(new_mol$Rings),
+                        Median = median(new_mol$Rings))
+                 
+
+qq_rings <- ggplot(new_mol, aes(sample = Rings)) +  #qq plot 
+  stat_qq() +
+  stat_qq_line(colour = "red") +
+  labs(title="Distribution of observations \naccording to Rings number",
+       y = "Rings") +
+theme_classic()
+
+density_rings <- ggplot(new_mol, aes(x = Rings)) + #density plot
+  geom_density() + 
+  #since the mode and median are the same, for simplicity, there is only the median
+  geom_vline(aes(xintercept=median(Rings),         
+                 color="Median"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=mean(Rings),
+                 color="Mean"), linetype="dashed",
+             size=1) +
+  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red")) +
+theme_classic()
+  
+box_rings <- ggplot(new_mol, aes(y = Rings)) +  #box plot
+  geom_boxplot() +
+theme_classic()
+plot_rings <- grid.arrange(qq_rings, density_rings,
+                           box_rings, ncol = 2)
+```
+The average value of the Rings parameter is 10, the mode and median are 9. The shape of the distribution is asymmetric, unimodal, the distribution has a slight positive skew. However, since the mode and median of this distribution coincide, and the median does not differ much, the distribution is very close to normal.
+
+``` {r}
+#calculate sd and find outliers
+sd_rings <- sd(new_mol$Rings) #sd = 3.22
+outlier_values <- length(boxplot.stats(new_mol$Rings)$out) #278 outliers, which was calculated with 1.5IQR rule
+
+#Calculate outliers using Hampel filter
+lower_bound_rings <- median(new_mol$Rings) - 3 * mad(new_mol$Rings)
+upper_bound_rings <- median(new_mol$Rings) + 3 * mad(new_mol$Rings)
+outlier_rings_HF <- length(which(new_mol$Rings < lower_bound_rings | new_mol$Rings > upper_bound_rings)) #136 - outliers decreased two times with this method
+
+```
+The interquartile range (IQR) is three, the number of outliers calculated by the 1.5 IQR method is 278, using the Hampel filter - 136.
+
+Do the same for Length.
+```{r}
+#find measures of central tendency
+stat_Length <- data.frame(Mean = mean(new_mol$Length),
+                        Mode = getmode(new_mol$Length),
+                        Median = median(new_mol$Length))
+                 
+
+qq_Length <- ggplot(new_mol, aes(sample = Length)) +  #qq plot 
+  stat_qq() +
+  stat_qq_line(colour = "red") +
+  labs(title="Distribution of observations \naccording to Length number",
+       y = "Length") +
+theme_classic()
+
+density_Length <- ggplot(new_mol, aes(x = Length)) + #density plot
+  geom_density() + 
+  #since the mode and median are the same, for simplicity, there is only the median
+  geom_vline(aes(xintercept=median(Length),         
+                 color="Median"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=mean(Length),
+                 color="Mean"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=getmode(Length),
+                 color="Mode"), linetype="dashed",
+             size=1) +
+  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+theme_classic()
+  
+box_Length <- ggplot(new_mol, aes(y = Length)) +  #box plot
+  geom_boxplot() +
+theme_classic()
+plot_Length <- grid.arrange(qq_Length, density_Length,
+                           box_Length, ncol = 2)
+```
+The mean of the Length parameter is 0.524, the mode is 0.550 and the median is 0.545. The shape of the distribution is asymmetric, unimodal, the distribution has a slight negative skew.
+
+``` {r}
+#calculate sd and find outliers
+summary(new_mol$Length)
+sd_Length <- sd(new_mol$Length) #sd = 0.12
+outlier_values_Length <- length(boxplot.stats(new_mol$Length)$out) #48 outliers, which was calculated with 1.5IQR rule
+
+#Calculate outliers using Hampel filter
+lower_bound_Length <- median(new_mol$Length) - 3 * mad(new_mol$Length)
+upper_bound_Length <- median(new_mol$Length) + 3 * mad(new_mol$Length)
+outlier_Length_HF <- length(which(new_mol$Length < lower_bound_Length | new_mol$Length > upper_bound_Length)) #35 outliers 
+
+```
+The interquartile range (IQR) is 0.165, the number of outliers calculated by the 1.5 IQR method is 48, using the Hampel filter - 35.
+
+
+Do the same for Diameter.
+```{r}
+#find measures of central tendency
+stat_Diameter <- data.frame(Mean = mean(new_mol$Diameter),
+                        Mode = getmode(new_mol$Diameter),
+                        Median = median(new_mol$Diameter))
+                 
+
+qq_Diameter <- ggplot(new_mol, aes(sample = Diameter)) +  #qq plot 
+  stat_qq() +
+  stat_qq_line(colour = "red") +
+  labs(title="Distribution of observations \naccording to Diameter number",
+       y = "Diameter") +
+theme_classic()
+
+density_Diameter <- ggplot(new_mol, aes(x = Diameter)) + #density plot
+  geom_density() + 
+  #since the mode and median are the same, for simplicity, there is only the median
+  geom_vline(aes(xintercept=median(Diameter),         
+                 color="Median"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=mean(Diameter),
+                 color="Mean"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=getmode(Diameter),
+                 color="Mode"), linetype="dashed",
+             size=1) +
+  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+theme_classic()
+  
+box_Diameter <- ggplot(new_mol, aes(y = Diameter)) +  #box plot
+  geom_boxplot() +
+theme_classic()
+plot_Diameter <- grid.arrange(qq_Diameter, density_Diameter,
+                           box_Diameter, ncol = 2)
+```
+The mean of the Diameter parameter is 0.408, the mode is 0.450 and the median is 0.425. The shape of the distribution is asymmetric, unimodal, the distribution has a slight negative skew. It is chi-square distribution. 
+
+``` {r}
+#calculate sd and find outliers
+summary(new_mol$Diameter)
+sd_Diameter <- sd(new_mol$Diameter) #sd = 0.0992
+outlier_values_Diameter <- length(boxplot.stats(new_mol$Diameter)$out) #58 outliers, which was calculated with 1.5IQR rule
+
+#Calculate outliers using Hampel filter
+lower_bound_Diameter <- median(new_mol$Diameter) - 3 * mad(new_mol$Diameter)
+upper_bound_Diameter <- median(new_mol$Diameter) + 3 * mad(new_mol$Diameter)
+outlier_Diameter_HF <- length(which(new_mol$Diameter < lower_bound_Diameter | new_mol$Diameter > upper_bound_Diameter)) #39 outliers 
+```
+The interquartile range (IQR) is 0.125, the number of outliers calculated by the 1.5 IQR method is 58, using the Hampel filter - 39.
+
+Do the same for Height.
+```{r}
+#find measures of central tendency
+stat_Height <- data.frame(Mean = mean(new_mol$Height),
+                        Mode = getmode(new_mol$Height),
+                        Median = median(new_mol$Height))
+                 
+
+qq_Height <- ggplot(new_mol, aes(sample = Height)) +  #qq plot 
+  stat_qq() +
+  stat_qq_line(colour = "red") +
+  labs(title="Distribution of observations \naccording to Height",
+       y = "Height") +
+theme_classic()
+
+density_Height <- ggplot(new_mol, aes(x = Height)) + #density plot
+  geom_density() + 
+  #since the mode and median are the same, for simplicity, there is only the median
+  geom_vline(aes(xintercept=median(Height),         
+                 color="Median"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=mean(Height),
+                 color="Mean"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=getmode(Height),
+                 color="Mode"), linetype="dashed",
+             size=1) +
+  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+theme_classic()
+  
+box_Height <- ggplot(new_mol, aes(y = Height)) +  #box plot
+  geom_boxplot() +
+theme_classic()
+plot_Height <- grid.arrange(qq_Height, density_Height,
+                           box_Height, ncol = 2)
+```
+The mean of the Height parameter is 0.408, the mode is 0.450 and the median is 0.425. The shape of the distribution is asymmetric, unimodal, the distribution has a slight positive skew, because of two outliers. If we omit them, it would be normal.
+
+``` {r}
+#calculate sd and find outliers
+summary(new_mol$Height)
+sd_Height <- sd(new_mol$Height) #sd = 0.0418
+outlier_values_Height <- length(boxplot.stats(new_mol$Height)$out) #28 outliers, which was calculated with 1.5IQR rule
+
+#Calculate outliers using Hampel filter
+lower_bound_Height <- median(new_mol$Height) - 3 * mad(new_mol$Height)
+upper_bound_Height <- median(new_mol$Height) + 3 * mad(new_mol$Height)
+outlier_Height_HF <- length(which(new_mol$Height < lower_bound_Height | new_mol$Height > upper_bound_Height)) #14 outliers 
+
+```
+The interquartile range (IQR) is 0.050, the number of outliers calculated by the 1.5 IQR method is 28, using the Hampel filter - 14.
+
+Do the same for Whole weight.
+
+```{r}
+#find measures of central tendency
+stat_Whole_weight <- data.frame(Mean = mean(new_mol$Whole_weight),
+                        Mode = getmode(new_mol$Whole_weight),
+                        Median = median(new_mol$Whole_weight))
+                 
+
+qq_Whole_weight <- ggplot(new_mol, aes(sample = Whole_weight)) +  #qq plot 
+  stat_qq() +
+  stat_qq_line(colour = "red") +
+  labs(title="Distribution of observations \naccording to Whole weight",
+       y = "Whole_weight") +
+theme_classic()
+
+density_Whole_weight <- ggplot(new_mol, aes(x = Whole_weight)) + #density plot
+  geom_density() + 
+  
+  geom_vline(aes(xintercept=median(Whole_weight),         
+                 color="Median"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=mean(Whole_weight),
+                 color="Mean"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=getmode(Whole_weight),
+                 color="Mode"), linetype="dashed",
+             size=1) +
+  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+theme_classic()
+  
+box_Whole_weight <- ggplot(new_mol, aes(y = Whole_weight)) +  #box plot
+  geom_boxplot() +
+theme_classic()
+plot_Whole_weight <- grid.arrange(qq_Whole_weight, density_Whole_weight,
+                           box_Whole_weight, ncol = 2)
+```
+The mean of the Whole weight parameter is 0.829, the mode is 0.223 and the median is 0.801. The shape of the distribution is chi-squired, asymmetric, bimodal.
+
+``` {r}
+#calculate sd and find outliers
+summary(new_mol$Whole_weight)
+sd_Whole_weight <- sd(new_mol$Whole_weight) #sd = 0.49
+outlier_values_Whole_weight <- length(boxplot.stats(new_mol$Whole_weight)$out) #29 outliers, which was calculated with 1.5IQR rule
+
+#Calculate outliers using Hampel filter
+lower_bound_Whole_weight <- median(new_mol$Whole_weight) - 3 * mad(new_mol$Whole_weight)
+upper_bound_Whole_weight <- median(new_mol$Whole_weight) + 3 * mad(new_mol$Whole_weight)
+outlier_Whole_weight_HF <- length(which(new_mol$м < lower_bound_Whole_weight | new_mol$Whole_weight > upper_bound_Whole_weight)) #0 outliers 
+
+```
+The interquartile range (IQR) is 0.712, the number of outliers calculated by the 1.5 IQR method is 29, using the Hampel filter - 0.
+
+Do the same for Shucked_weight.
+```{r}
+#find measures of central tendency
+stat_Shucked_weight <- data.frame(Mean = mean(new_mol$Shucked_weight),
+                        Mode = getmode(new_mol$Shucked_weight),
+                        Median = median(new_mol$Shucked_weight))
+                 
+
+qq_Shucked_weight <- ggplot(new_mol, aes(sample = Shucked_weight)) +  #qq plot 
+  stat_qq() +
+  stat_qq_line(colour = "red") +
+  labs(title="Distribution of observations \naccording to Shucked weight",
+       y = "Shucked weight") +
+theme_classic()
+
+density_Shucked_weight <- ggplot(new_mol, aes(x = Shucked_weight)) + #density plot
+  geom_density() + 
+  
+  geom_vline(aes(xintercept=median(Shucked_weight),         
+                 color="Median"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=mean(Shucked_weight),
+                 color="Mean"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=getmode(Shucked_weight),
+                 color="Mode"), linetype="dashed",
+             size=1) +
+  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+theme_classic()
+  
+box_Shucked_weight <- ggplot(new_mol, aes(y = Shucked_weight)) +  #box plot
+  geom_boxplot() +
+theme_classic()
+plot_Shucked_weight <- grid.arrange(qq_Shucked_weight, density_Shucked_weight,
+                           box_Shucked_weight, ncol = 2)
+```
+The mean of the Whole weight parameter is 0.360, the mode is 0.175 and the median is 0.336. The shape of the distribution is chi-squired, asymmetric, unimodal.
+
+``` {r}
+#calculate sd and find outliers
+summary(new_mol$Shucked_weight)
+sd_Shucked_weight <- sd(new_mol$Shucked_weight) #sd = 0.222
+outlier_values_Shucked_weight <- length(boxplot.stats(new_mol$Shucked_weight)$out) #48 outliers, which was calculated with 1.5IQR rule
+
+#Calculate outliers using Hampel filter
+lower_bound_Shucked_weight <- median(new_mol$Shucked_weight) - 3 * mad(new_mol$Shucked_weight)
+upper_bound_Shucked_weight <- median(new_mol$Shucked_weight) + 3 * mad(new_mol$Shucked_weight)
+outlier_Shucked_weight_HF <- length(which(new_mol$Shucked_weight < lower_bound_Shucked_weight | new_mol$Shucked_weight > upper_bound_Shucked_weight)) #34 outliers 
+
+```
+The interquartile range (IQR) is 0.316, the number of outliers calculated by the 1.5 IQR method is 48, using the Hampel filter - 34.
+
+Do the same for Viscera weight.
+```{r}
+#find measures of central tendency
+stat_Viscera_weight <- data.frame(Mean = mean(new_mol$Viscera_weight),
+                        Mode = getmode(new_mol$Viscera_weight),
+                        Median = median(new_mol$Viscera_weight))
+                 
+
+qq_Viscera_weight <- ggplot(new_mol, aes(sample = Viscera_weight)) +  #qq plot 
+  stat_qq() +
+  stat_qq_line(colour = "red") +
+  labs(title="Distribution of observations \naccording to Viscera weight",
+       y = "Viscera weight") +
+theme_classic()
+
+density_Viscera_weight <- ggplot(new_mol, aes(x = Viscera_weight)) + #density plot
+  geom_density() + 
+  
+  geom_vline(aes(xintercept=median(Viscera_weight),         
+                 color="Median"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=mean(Viscera_weight),
+                 color="Mean"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=getmode(Viscera_weight),
+                 color="Mode"), linetype="dashed",
+             size=1) +
+  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+theme_classic()
+  
+box_Viscera_weight <- ggplot(new_mol, aes(y = Viscera_weight)) +  #box plot
+  geom_boxplot() +
+theme_classic()
+plot_Viscera_weight <- grid.arrange(qq_Viscera_weight, density_Viscera_weight,
+                           box_Viscera_weight, ncol = 2)
+```
+The mean of the Viscera weight parameter is 0.181, the mode is 0.172 and the median is 0.171. The shape of the distribution is chi-squired, asymmetric, unimodal.
+
+``` {r}
+#calculate sd and find outliers
+summary(new_mol$Viscera_weight)
+sd_Viscera_weight <- sd(new_mol$Viscera_weight) #sd = 0.11
+outlier_values_Viscera_weight <- length(boxplot.stats(new_mol$Viscera_weight)$out) #26 outliers, which was calculated with 1.5IQR rule
+
+#Calculate outliers using Hampel filter
+lower_bound_Viscera_weight <- median(new_mol$Viscera_weight) - 3 * mad(new_mol$Viscera_weight)
+upper_bound_Viscera_weight <- median(new_mol$Viscera_weight) + 3 * mad(new_mol$Viscera_weight)
+outlier_Viscera_weight_HF <- length(which(new_mol$Viscera_weight < lower_bound_Viscera_weight | new_mol$Viscera_weight > upper_bound_Viscera_weight)) #13 outliers 
+
+```
+The interquartile range (IQR) is 0.159, the number of outliers calculated by the 1.5 IQR method is 26, using the Hampel filter - 13.
+
+Do the same for Shell weight.
+```{r}
+#find measures of central tendency
+stat_Shell_weight <- data.frame(Mean = mean(new_mol$Shell_weight),
+                        Mode = getmode(new_mol$Shell_weight),
+                        Median = median(new_mol$Shell_weight))
+                 
+
+qq_Shell_weight <- ggplot(new_mol, aes(sample = Shell_weight)) +  #qq plot 
+  stat_qq() +
+  stat_qq_line(colour = "red") +
+  labs(title="Distribution of observations \naccording to Shell weight",
+       y = "Shell weight") +
+theme_classic()
+
+density_Shell_weight <- ggplot(new_mol, aes(x = Shell_weight)) + #density plot
+  geom_density() + 
+  
+  geom_vline(aes(xintercept=median(Shell_weight),         
+                 color="Median"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=mean(Shell_weight),
+                 color="Mean"), linetype="dashed",
+             size=1) +
+  geom_vline(aes(xintercept=getmode(Shell_weight),
+                 color="Mode"), linetype="dashed",
+             size=1) +
+  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+theme_classic()
+  
+box_Shell_weight <- ggplot(new_mol, aes(y = Shell_weight)) +  #box plot
+  geom_boxplot() +
+theme_classic()
+plot_Shell_weight <- grid.arrange(qq_Shell_weight, density_Shell_weight,
+                           box_Shell_weight, ncol = 2)
+```
+The mean of the Shell weight parameter is 0.239, the mode is 0.275 and the median is 0.171. The shape of the distribution is chi-squired, asymmetric, bimodal with positive skew.
+
+``` {r}
+#calculate sd and find outliers
+summary(new_mol$Shell_weight)
+sd_Shell_weight <- sd(new_mol$Shell_weight) #sd = 0.139
+outlier_values_Shell_weight <- length(boxplot.stats(new_mol$Shell_weight)$out) #35 outliers, which was calculated with 1.5IQR rule
+
+#Calculate outliers using Hampel filter
+lower_bound_Shell_weight <- median(new_mol$Shell_weight) - 3 * mad(new_mol$Shell_weight)
+upper_bound_Shell_weight <- median(new_mol$Shell_weight) + 3 * mad(new_mol$Shell_weight)
+outlier_Shell_weight_HF <- length(which(new_mol$Shell_weight < lower_bound_Shell_weight | new_mol$Shell_weight > upper_bound_Shell_weight)) #19 outliers 
+
+```
+The interquartile range (IQR) is 0.199, the number of outliers calculated by the 1.5 IQR method is 35, using the Hampel filter - 19.
+
+
+### Now we can draw a picture with correlation between different parameters. 
+```{r}
+#let`s do correlation plot
+new_mol$Sex <- as.numeric(new_mol$Sex) #for calculation correlation we need to use only numbers
+cor_M = cor(new_mol)
+
+#let`s compute the matrix of p-value
+cor.mtest <- function(mat, ...) {
+  mat <- as.matrix(mat)
+  n <- ncol(mat)
+  p.mat<- matrix(NA, n, n)
+  diag(p.mat) <- 0
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+      tmp <- cor.test(mat[, i], mat[, j], ...)
+      p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+    }
+  }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+# matrix of the p-value of the correlation
+p.mat <- cor.mtest(new_mol)
+
+# correlation plot
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor_M, method="color", col=col(200),  
+         type="upper", order="original", 
+         addCoef.col = "black", # Add coefficient of correlation
+         tl.col="black", tl.srt=45, #Text label color and rotation
+         number.cex=0.55,
+         # Combine with significance
+         p.mat = p.mat, sig.level = 0.01, insig = "blank", 
+         # hide correlation coefficient on the principal diagonal
+         diag=FALSE 
+         )
+################################################### Я не знаю, что еще можно сделать с графиком, чтобы он нормально показывался, не открывая его дополнительно в окне :(((((((((((((((((((((
+```
+We can see a very high correlation between length, diameter, different types of weight, which was expected. On the other hand, Sex is low correlated with the size of mollusks, and, which is not entirely expected, the number of rings also does not have a strong correlation with size. 
+
+## Task 3. Mean and standart deviation for Lenght depended on Sex
+```{r}
+Sex_group <- mol_data %>% group_by(mol_data$Sex) %>% summarize_at(vars(Length), list(name = mean, sd))  
+
+```
+
+## Task 4. What percentage of molluscs has Height less than 0.165?
+```{r}
+sum(mol_data$Height < 0.165)/4176*100
+```
+## Task 5. What is the Length variable greater than 92% of all observations?
+```{r}
+quantile(mol_data$Length, 0.92)
+```
+## Task 6. Create a new variable Lenght_z_scores and store the Length variable into it after standardizing it.
+
+```{r}
+Lenght_z_scores <- (mol_data$Length - mean(mol_data$Length)) / sd(mol_data$Length)
+```
+
+## Task 7. Compare the diameter of the mollusks with the number of rings 5 and 15.
+```{r}
+#filter rings
+Rings_comp <- mol_data %>% filter(Rings == 5 | Rings == 15) %>% select(Diameter, Rings)
+
+ggplot(Rings_comp, aes(x = Rings, y = Diameter, group=Rings)) +
+  geom_boxplot()
+```
+We can see that it is statistically significant the difference between clams with 5 and 15 rings. Also we can test it with a normal t.test without any distribution transformations. The results below show a p-value < .01 supporting the alternative hypothesis that “true difference in means is not equal to 0”; essentially it states there is a statistical difference between the two means.
+```{r}
+t.test(Diameter ~ Rings, Rings_comp)
+```
+
+## Task 8. We are especially interested in the Diametr and Whole_weight variables. What can you say about them?
+
+We see very strong correlation between Diameter and Whole_weight (0.93), p < 0.01. 
+```{r}
+
+```
+
