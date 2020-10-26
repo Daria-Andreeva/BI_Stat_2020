@@ -14,12 +14,12 @@ knitr::opts_chunk$set(tidy = FALSE, # сохранять форматирова�
                fig.height = 16)  # высота рисунков по умолчанию
 ```
 
-##Введение
-Проведение описательной статистики.
+##Introduction
+Conducting descriptive statistics.
 
-##Материалы и методы
+##Materials and methods
 
-Расчеты проведены в среде R с использованием пакета pwr [10]. Для построения графиков использовали пакет ggplot2 [11].
+The calculations were carried out in the R environment using the pwr, data.table, dplyr, plyr and tidyr packages. The ggplot2, grid.extra and corrplot packages were used to plot the graphs.
 
 
 ## Task 1. Open datasets and merge them.
@@ -37,6 +37,7 @@ library(gridExtra)
 library(zoo)
 library(corrplot)
 library(RColorBrewer)
+
 ```
 
 Open files (please write your dir)
@@ -55,7 +56,7 @@ return(dataset)
 }
 
 # Use function to read files in our dir
-mol_data <- read_files('/home/daria/Bioinf/statistics_r/data/Data/')
+mol_data <- read_files('/home/daria/Bioinf/statistics_r/data/Project_1/')
 ```
 
 ## Task 2. EDAnalise.
@@ -154,9 +155,10 @@ stat_rings <- data.frame(Mean = mean(new_mol$Rings),
 qq_rings <- ggplot(new_mol, aes(sample = Rings)) +  #qq plot 
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title="Distribution of observations \naccording to Rings number",
-       y = "Rings") +
-theme_classic()
+  labs(title="Normal Q-Q plot",
+       y = "Normal data quantiles", x = "Normal theoretical quantiles") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 density_rings <- ggplot(new_mol, aes(x = Rings)) + #density plot
   geom_density() + 
@@ -168,15 +170,23 @@ density_rings <- ggplot(new_mol, aes(x = Rings)) + #density plot
                  color="Mean"), linetype="dashed",
              size=1) +
   scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red")) +
-theme_classic()
+  labs(title="Rings density plot",
+       y = "Rings", x = "Density") +
+    theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
   
-box_rings <- ggplot(new_mol, aes(y = Rings)) +  #box plot
+box_rings <- ggplot(new_mol, aes(x = Rings)) +  #box plot
   geom_boxplot() +
-theme_classic()
-plot_rings <- grid.arrange(qq_rings, density_rings,
-                           box_rings, ncol = 2)
+  labs(title="Rings box-plot",
+       y = "All molluscs", x = "Rings") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+plot_rings <- grid.arrange(density_rings, qq_rings,
+                           box_rings, ncol = 2) 
 ```
-The average value of the Rings parameter is 10, the mode and median are 9. The shape of the distribution is asymmetric, unimodal, the distribution has a slight positive skew. However, since the mode and median of this distribution coincide, and the median does not differ much, the distribution is very close to normal.
+The average value of the Rings parameter is 10, the mode and median are 9. The Q-Q plot clearly shows that the quantile points almost lie on the theoretical normal line. The Density plot shows almost normal distribution except right tail. "Rings box-plot" shows about 20 outliers and close to normal distribution. 
+The shape of the distribution is asymmetric, unimodal, the distribution has a slight positive skew. However, since the mode and median of this distribution coincide, and the median does not differ much, the distribution is very close to normal.
 
 ``` {r}
 #calculate sd and find outliers
@@ -202,9 +212,10 @@ stat_Length <- data.frame(Mean = mean(new_mol$Length),
 qq_Length <- ggplot(new_mol, aes(sample = Length)) +  #qq plot 
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title="Distribution of observations \naccording to Length number",
-       y = "Length") +
-theme_classic()
+ labs(title="Normal Q-Q plot",
+       y = "Normal data quantiles", x = "Normal theoretical quantiles") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 density_Length <- ggplot(new_mol, aes(x = Length)) + #density plot
   geom_density() + 
@@ -219,15 +230,22 @@ density_Length <- ggplot(new_mol, aes(x = Length)) + #density plot
                  color="Mode"), linetype="dashed",
              size=1) +
   scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
-theme_classic()
+labs(title="Length density plot",
+       y = "Length", x = "Density") +
+    theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
   
 box_Length <- ggplot(new_mol, aes(y = Length)) +  #box plot
   geom_boxplot() +
-theme_classic()
+labs(title="Length box-plot",
+       y = "All molluscs", x = "Length") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 plot_Length <- grid.arrange(qq_Length, density_Length,
                            box_Length, ncol = 2)
 ```
-The mean of the Length parameter is 0.524, the mode is 0.550 and the median is 0.545. The shape of the distribution is asymmetric, unimodal, the distribution has a slight negative skew.
+The mean of the Length parameter is 0.524, the mode is 0.550 and the median is 0.545. The Q-Q plot clearly shows that the quantile points do not lie on the theoretical normal line with two deviating tails. The Density plot shows chi-square distribution distribution except left tail. "Rings box-plot" shows about some outliers. 
+The shape of the distribution is asymmetric, unimodal, the distribution has a slight negative skew. It is chi-square distribution. 
 
 ``` {r}
 #calculate sd and find outliers
@@ -255,9 +273,10 @@ stat_Diameter <- data.frame(Mean = mean(new_mol$Diameter),
 qq_Diameter <- ggplot(new_mol, aes(sample = Diameter)) +  #qq plot 
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title="Distribution of observations \naccording to Diameter number",
-       y = "Diameter") +
-theme_classic()
+  labs(title="Normal Q-Q plot",
+       y = "Normal data quantiles", x = "Normal theoretical quantiles") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 density_Diameter <- ggplot(new_mol, aes(x = Diameter)) + #density plot
   geom_density() + 
@@ -271,16 +290,24 @@ density_Diameter <- ggplot(new_mol, aes(x = Diameter)) + #density plot
   geom_vline(aes(xintercept=getmode(Diameter),
                  color="Mode"), linetype="dashed",
              size=1) +
-  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
-theme_classic()
+  scale_color_manual(name = " ", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+labs(title="Diameter density plot",
+       y = "Diameter", x = "Density") +
+    theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
   
 box_Diameter <- ggplot(new_mol, aes(y = Diameter)) +  #box plot
   geom_boxplot() +
-theme_classic()
+labs(title="Diameter box-plot",
+       y = "All molluscs", x = "Diameter") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
 plot_Diameter <- grid.arrange(qq_Diameter, density_Diameter,
                            box_Diameter, ncol = 2)
 ```
-The mean of the Diameter parameter is 0.408, the mode is 0.450 and the median is 0.425. The shape of the distribution is asymmetric, unimodal, the distribution has a slight negative skew. It is chi-square distribution. 
+The mean of the Diameter parameter is 0.408, the mode is 0.450 and the median is 0.425. The Q-Q plot clearly shows that the quantile points almost lie on the theoretical normal line with two deviating tails. The Density plot shows close to normal distribution with left tail. "Rings box-plot" shows about some outliers. 
+The shape of the distribution is asymmetric, unimodal, the distribution has a slight negative skew.  
 
 ``` {r}
 #calculate sd and find outliers
@@ -306,9 +333,10 @@ stat_Height <- data.frame(Mean = mean(new_mol$Height),
 qq_Height <- ggplot(new_mol, aes(sample = Height)) +  #qq plot 
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title="Distribution of observations \naccording to Height",
-       y = "Height") +
-theme_classic()
+  labs(title="Normal Q-Q plot",
+       y = "Normal data quantiles", x = "Normal theoretical quantiles") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 density_Height <- ggplot(new_mol, aes(x = Height)) + #density plot
   geom_density() + 
@@ -322,16 +350,24 @@ density_Height <- ggplot(new_mol, aes(x = Height)) + #density plot
   geom_vline(aes(xintercept=getmode(Height),
                  color="Mode"), linetype="dashed",
              size=1) +
-  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
-theme_classic()
+  scale_color_manual(name = " ", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+labs(title="Height density plot",
+       y = "Height", x = "Density") +
+    theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
   
 box_Height <- ggplot(new_mol, aes(y = Height)) +  #box plot
   geom_boxplot() +
-theme_classic()
+labs(title="Height box-plot",
+       y = "All molluscs", x = "Height") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
 plot_Height <- grid.arrange(qq_Height, density_Height,
                            box_Height, ncol = 2)
 ```
-The mean of the Height parameter is 0.408, the mode is 0.450 and the median is 0.425. The shape of the distribution is asymmetric, unimodal, the distribution has a slight positive skew, because of two outliers. If we omit them, it would be normal.
+The mean of the Height parameter is 0.408, the mode is 0.450 and the median is 0.425. The Q-Q plot clearly shows that the quantile points almost lie on the theoretical normal line without tails. The Density plot shows close to normal distribution with right tail. "Rings box-plot" shows about some outliers. 
+The shape of the distribution is asymmetric, unimodal, the distribution has a slight positive skew, because of few outliers. If we omit them, it would be normal.
 
 ``` {r}
 #calculate sd and find outliers
@@ -359,9 +395,10 @@ stat_Whole_weight <- data.frame(Mean = mean(new_mol$Whole_weight),
 qq_Whole_weight <- ggplot(new_mol, aes(sample = Whole_weight)) +  #qq plot 
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title="Distribution of observations \naccording to Whole weight",
-       y = "Whole_weight") +
-theme_classic()
+  labs(title="Normal Q-Q plot",
+       y = "Normal data quantiles", x = "Normal theoretical quantiles") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 density_Whole_weight <- ggplot(new_mol, aes(x = Whole_weight)) + #density plot
   geom_density() + 
@@ -375,16 +412,24 @@ density_Whole_weight <- ggplot(new_mol, aes(x = Whole_weight)) + #density plot
   geom_vline(aes(xintercept=getmode(Whole_weight),
                  color="Mode"), linetype="dashed",
              size=1) +
-  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
-theme_classic()
+  scale_color_manual(name = " ", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+labs(title="Whole weight density plot",
+       y = "Whole weight", x = "Density") +
+    theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
   
 box_Whole_weight <- ggplot(new_mol, aes(y = Whole_weight)) +  #box plot
   geom_boxplot() +
-theme_classic()
+labs(title="Whole weight box-plot",
+       y = "All molluscs", x = "Whole weight") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
 plot_Whole_weight <- grid.arrange(qq_Whole_weight, density_Whole_weight,
                            box_Whole_weight, ncol = 2)
 ```
-The mean of the Whole weight parameter is 0.829, the mode is 0.223 and the median is 0.801. The shape of the distribution is chi-squired, asymmetric, bimodal.
+The mean of the Whole weight parameter is 0.829, the mode is 0.223 and the median is 0.801. The Q-Q plot clearly shows that the quantile points do not lie on the theoretical normal line with one deviating tail. The Density plot shows chi-square distribution with right tail. "Rings box-plot" shows about some outliers. 
+The shape of the distribution is chi-squired, asymmetric, bimodal.
 
 ``` {r}
 #calculate sd and find outliers
@@ -411,9 +456,10 @@ stat_Shucked_weight <- data.frame(Mean = mean(new_mol$Shucked_weight),
 qq_Shucked_weight <- ggplot(new_mol, aes(sample = Shucked_weight)) +  #qq plot 
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title="Distribution of observations \naccording to Shucked weight",
-       y = "Shucked weight") +
-theme_classic()
+  labs(title="Normal Q-Q plot",
+       y = "Normal data quantiles", x = "Normal theoretical quantiles") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 density_Shucked_weight <- ggplot(new_mol, aes(x = Shucked_weight)) + #density plot
   geom_density() + 
@@ -427,16 +473,24 @@ density_Shucked_weight <- ggplot(new_mol, aes(x = Shucked_weight)) + #density pl
   geom_vline(aes(xintercept=getmode(Shucked_weight),
                  color="Mode"), linetype="dashed",
              size=1) +
-  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
-theme_classic()
+  scale_color_manual(name = " ", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+labs(title="Shucked weight density plot",
+       y = "Shucked weight", x = "Density") +
+    theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
   
 box_Shucked_weight <- ggplot(new_mol, aes(y = Shucked_weight)) +  #box plot
   geom_boxplot() +
-theme_classic()
+labs(title="Shucked weight box-plot",
+       y = "All molluscs", x = "Shucked weight") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
 plot_Shucked_weight <- grid.arrange(qq_Shucked_weight, density_Shucked_weight,
                            box_Shucked_weight, ncol = 2)
 ```
-The mean of the Whole weight parameter is 0.360, the mode is 0.175 and the median is 0.336. The shape of the distribution is chi-squired, asymmetric, unimodal.
+The mean of the Whole weight parameter is 0.360, the mode is 0.175 and the median is 0.336. The Q-Q plot clearly shows that the quantile points do not lie on the theoretical normal line with rwo deviating tails. The Density plot shows chi-square distribution with right tail. "Rings box-plot" shows about some outliers. 
+The shape of the distribution is chi-squired, asymmetric, unimodal.
 
 ``` {r}
 #calculate sd and find outliers
@@ -463,13 +517,13 @@ stat_Viscera_weight <- data.frame(Mean = mean(new_mol$Viscera_weight),
 qq_Viscera_weight <- ggplot(new_mol, aes(sample = Viscera_weight)) +  #qq plot 
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title="Distribution of observations \naccording to Viscera weight",
-       y = "Viscera weight") +
-theme_classic()
+  labs(title="Normal Q-Q plot",
+       y = "Normal data quantiles", x = "Normal theoretical quantiles") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 density_Viscera_weight <- ggplot(new_mol, aes(x = Viscera_weight)) + #density plot
   geom_density() + 
-  
   geom_vline(aes(xintercept=median(Viscera_weight),         
                  color="Median"), linetype="dashed",
              size=1) +
@@ -479,16 +533,24 @@ density_Viscera_weight <- ggplot(new_mol, aes(x = Viscera_weight)) + #density pl
   geom_vline(aes(xintercept=getmode(Viscera_weight),
                  color="Mode"), linetype="dashed",
              size=1) +
-  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
-theme_classic()
+  scale_color_manual(name = " ", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+labs(title="Viscera weight density plot",
+       y = "Viscera weight", x = "Density") +
+    theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
   
 box_Viscera_weight <- ggplot(new_mol, aes(y = Viscera_weight)) +  #box plot
   geom_boxplot() +
-theme_classic()
+labs(title="Viscera weight box-plot",
+       y = "All molluscs", x = "Viscera weight") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
 plot_Viscera_weight <- grid.arrange(qq_Viscera_weight, density_Viscera_weight,
                            box_Viscera_weight, ncol = 2)
 ```
-The mean of the Viscera weight parameter is 0.181, the mode is 0.172 and the median is 0.171. The shape of the distribution is chi-squired, asymmetric, unimodal.
+The mean of the Viscera weight parameter is 0.181, the mode is 0.172 and the median is 0.171. The Q-Q plot clearly shows that the quantile points do not lie on the theoretical normal line with rwo deviating tails. The Density plot shows chi-square distribution with right tail. "Rings box-plot" shows about some outliers. 
+The shape of the distribution is chi-squired, asymmetric, unimodal.
 
 ``` {r}
 #calculate sd and find outliers
@@ -515,9 +577,10 @@ stat_Shell_weight <- data.frame(Mean = mean(new_mol$Shell_weight),
 qq_Shell_weight <- ggplot(new_mol, aes(sample = Shell_weight)) +  #qq plot 
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title="Distribution of observations \naccording to Shell weight",
-       y = "Shell weight") +
-theme_classic()
+  labs(title="Normal Q-Q plot",
+       y = "Normal data quantiles", x = "Normal theoretical quantiles") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 
 density_Shell_weight <- ggplot(new_mol, aes(x = Shell_weight)) + #density plot
   geom_density() + 
@@ -531,16 +594,24 @@ density_Shell_weight <- ggplot(new_mol, aes(x = Shell_weight)) + #density plot
   geom_vline(aes(xintercept=getmode(Shell_weight),
                  color="Mode"), linetype="dashed",
              size=1) +
-  scale_color_manual(name = "statistics", values = c(Median = "blue", Mean = "red", Mode = "green")) +
-theme_classic()
+  scale_color_manual(name = " ", values = c(Median = "blue", Mean = "red", Mode = "green")) +
+labs(title="Shell weight density plot",
+       y = "Shell weight", x = "Density") +
+    theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
   
 box_Shell_weight <- ggplot(new_mol, aes(y = Shell_weight)) +  #box plot
   geom_boxplot() +
-theme_classic()
+labs(title="Shell weight box-plot",
+       y = "All molluscs", x = "Shell weight") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+
 plot_Shell_weight <- grid.arrange(qq_Shell_weight, density_Shell_weight,
                            box_Shell_weight, ncol = 2)
 ```
-The mean of the Shell weight parameter is 0.239, the mode is 0.275 and the median is 0.171. The shape of the distribution is chi-squired, asymmetric, bimodal with positive skew.
+The mean of the Shell weight parameter is 0.239, the mode is 0.275 and the median is 0.171. The Q-Q plot clearly shows that the quantile points do not lie on the theoretical normal line with rwo deviating tails. The Density plot shows chi-square distribution with right tail. "Rings box-plot" shows about some outliers. 
+The shape of the distribution is chi-squired, asymmetric, bimodal with positive skew.
 
 ``` {r}
 #calculate sd and find outliers
@@ -558,10 +629,15 @@ The interquartile range (IQR) is 0.199, the number of outliers calculated by the
 
 
 ### Now we can draw a picture with correlation between different parameters. 
+Since we comply with all the criteria for the applicability of the test, namely:
+1. Observations are random and independent of each other, 
+2. Samples are random and independent of each other, 
+3. A large sample (> 30 observations in a group), 
+I have used Pearson test.
 ```{r}
 #let`s do correlation plot
 new_mol$Sex <- as.numeric(new_mol$Sex) #for calculation correlation we need to use only numbers
-cor_M = cor(new_mol)
+cor_M = cor(new_mol, method = 'pearson')
 
 #let`s compute the matrix of p-value
 cor.mtest <- function(mat, ...) {
@@ -594,47 +670,96 @@ corrplot(cor_M, method="color", col=col(200),
          # hide correlation coefficient on the principal diagonal
          diag=FALSE 
          )
-################################################### Я не знаю, что еще можно сделать с графиком, чтобы он нормально показывался, не открывая его дополнительно в окне :(((((((((((((((((((((
+
 ```
 We can see a very high correlation between length, diameter, different types of weight, which was expected. On the other hand, Sex is low correlated with the size of mollusks, and, which is not entirely expected, the number of rings also does not have a strong correlation with size. 
 
 ## Task 3. Mean and standart deviation for Lenght depended on Sex
 ```{r}
-Sex_group <- mol_data %>% group_by(mol_data$Sex) %>% summarize_at(vars(Length), list(name = mean, sd))  
+Sex_group <- new_mol %>% group_by(new_mol$Sex) %>% summarize_at(vars(Length), list(name = mean, sd))  
 
 ```
 
 ## Task 4. What percentage of molluscs has Height less than 0.165?
 ```{r}
-sum(mol_data$Height < 0.165)/4176*100
+sum(new_mol$Height < 0.165)/4176*100 #70,9%
 ```
 ## Task 5. What is the Length variable greater than 92% of all observations?
 ```{r}
-quantile(mol_data$Length, 0.92)
+quantile(new_mol$Length, 0.92) #0.67
 ```
 ## Task 6. Create a new variable Lenght_z_scores and store the Length variable into it after standardizing it.
 
 ```{r}
-Lenght_z_scores <- (mol_data$Length - mean(mol_data$Length)) / sd(mol_data$Length)
+Lenght_z_scores <- (new_mol$Length - mean(new_mol$Length)) / sd(new_mol$Length)
 ```
 
 ## Task 7. Compare the diameter of the mollusks with the number of rings 5 and 15.
 ```{r}
 #filter rings
-Rings_comp <- mol_data %>% filter(Rings == 5 | Rings == 15) %>% select(Diameter, Rings)
+Rings_comp <- new_mol %>% filter(Rings == 5 | Rings == 15) %>% select(Diameter, Rings)
 
 ggplot(Rings_comp, aes(x = Rings, y = Diameter, group=Rings)) +
-  geom_boxplot()
+  geom_boxplot() +
+  labs(title="Comparison of the diameter of the mollusks\n with the number of rings 5 and 15.") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
-We can see that it is statistically significant the difference between clams with 5 and 15 rings. Also we can test it with a normal t.test without any distribution transformations. The results below show a p-value < .01 supporting the alternative hypothesis that “true difference in means is not equal to 0”; essentially it states there is a statistical difference between the two means.
+We can see that it is significant the difference between clams with 5 and 15 rings. 
+
+Since we comply with all the criteria for the applicability of the test, namely:
+1. Observations are random and independent of each other, 
+2. Samples are random and independent of each other, 
+3. A large sample (> 30 observations in a group), 
+I have used t.test.
 ```{r}
 t.test(Diameter ~ Rings, Rings_comp)
+
 ```
+The diameter of mollusks with different numbers of rings varies significantly (t196 = -34, p < 0.05). 
+Based on this result we may conclude the medians of these two distributions differ. The distribution of one population is shifted to the left or right of the other,” which implies different medians.
 
 ## Task 8. We are especially interested in the Diametr and Whole_weight variables. What can you say about them?
 
-We see very strong correlation between Diameter and Whole_weight (0.93), p < 0.01. 
+Since we comply with all the criteria for the applicability of the test, namely:
+1. Observations are random and independent of each other, 
+2. Samples are random and independent of each other, 
+3. A large sample (> 30 observations in a group), 
+I have used Pearson test.
 ```{r}
-
+cor.test(new_mol$Diameter, new_mol$Whole_weight,  method = "pearson")
 ```
+The correlation coefficient between Diameter and Whole_weight are 0.926 and the p-value is <0.0000000000000002, which indicates a strong positive correlation. 
 
+## Task 9. While you were working with the data, you probably noticed something interesting in it. You can come up with a couple of hypotheses and test them. We'd love to get a fresh perspective on our data. 
+
+Firstly, despite the fact that I used parametric tests to calculate the correlation - Pearson's test, since the distributions are not entirely normal, it would be more accurate to use nonparametric tests (for example, Spearman, Mann-Whitney or Kholmogorov-Smirnov). On the other hand, we have a fairly large sample.
+
+```{r}
+#for example recalculate 8th exercise
+cor.test(new_mol$Diameter, new_mol$Whole_weight,  method = "spearman")
+```
+The correlation coefficient between Diameter and Whole_weight are 0.971 (Spearman method) and the p-value is <0.0000000000000002, which indicates a strong positive correlation. Previous test has shown 0.926 correlation coefficient (Pearson method). 
+
+Secondly, one interesting hypothesis to test is whether there is a correlation between sex and size of mussels or the number of rings. But Pearson's correlation coefficient was low (-0.35 to -0.45) (calculations are in the point 2). 
+```{r}
+#plot box-plots 
+ggplot(new_mol, aes(x = Sex, y = Diameter, group=Sex)) +
+  geom_boxplot() +
+  labs(title="Comparison of the diameter of the mollusks different sex") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+It is also interesting that the number of rings - a factor that actually indicates the age of the mussel - has a rather low Pearson correlation coefficient. But we see a significant difference between 5 and 15 ring clams. 
+```{r}
+#plot box-plots 
+ggplot(new_mol, aes(x = Rings, y = Diameter, group=Rings)) +
+  geom_boxplot() +
+  labs(title="Comparison of the diameter of the mollusks\n with different numbers of Rings") +
+theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+We see that the correlation may not be linear, but logarithmic.
+
+### Conclusion.
+We conducted ED analysis and tested some hypotheses.
