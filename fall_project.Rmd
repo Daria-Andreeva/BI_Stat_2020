@@ -49,7 +49,7 @@ setwd(link)
 file_list <- list.files(path=link)
 dataset <- data.frame()
 for (i in 1:length(file_list)){
-temp_data <- fread(file_list[i], stringsAsFactors = F)
+temp_data <- fread(file_list[i], stringsAsFactors = F, encoding = "UTF-8")
 dataset <- rbindlist(list(dataset, temp_data), use.names = T)
 }
 return(dataset)
