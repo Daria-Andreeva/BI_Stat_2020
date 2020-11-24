@@ -1,0 +1,303 @@
+---
+title: "Проект 2"
+output: html_document
+---
+# Подготовка к работе
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Нам понадобятся следующие пакеты. 
+
+* [dplyr](https://cran.r-project.org/web/packages/dplyr/index.html)
+* [ggplot2](https://cran.r-project.org/web/packages/ggplot2/index.html)
+* [corrplot](https://cran.r-project.org/web/packages/corrplot/index.html)
+* [lattice](https://cran.r-project.org/web/packages/lattice/index.html)
+* [caTools](https://cran.r-project.org/web/packages/caTools/index.html)
+* [plotly](https://cran.r-project.org/web/packages/plotly/index.html)
+* [MASS](https://cran.r-project.org/web/packages/MASS/index.html)
+
+
+```{r packages, include=FALSE}
+library(corrplot) #for visualisation of correlation
+library(lattice) #for visualisation
+library(ggplot2) #for visualisation
+library(caTools) #for splittind data into testing and training data
+library(dplyr) #manipulating dataframe
+library(plotly) #converting ggplot to plotly
+library(MASS)
+
+theme_set(theme_bw())
+```
+
+## 2. Подготовим данные
+Проверим отсутсвующие значения и выбросим их при необходимости.
+```{r}
+numberOfNA <- length(which(is.na(Boston)==T))
+if(numberOfNA>0) {
+  housing <- Boston[complete.cases(Boston),]
+}
+```
+
+Создадим данные для тестирования модели. 
+```{r}
+set.seed(123)
+split <- sample.split(Boston,SplitRatio = 0.75) #assigns booleans to a new coloumn based on the split ratio
+train <- subset(Boston,split==TRUE)
+test <- subset(Boston,split==FALSE)
+```
+
+## 3. Разведочный анализ.
+Посмотрим структуру датасета и базовую статистику.
+```{r}
+str(Boston)
+
+summary(Boston)
+```
+
+Здесь мы можем видеть, что переменные «crim» и «black» принимают широкий диапазон значений.
+
+Переменные «crim», «zn», «rm» и «black» имеют большую разницу между их медианной и средним значением, что указывает на множество выбросов в соответствующих переменных.
+
+```{r}
+par(mfrow = c(1, 4))
+boxplot(Boston$crim, main='crim',col='Sky Blue')
+boxplot(Boston$zn, main='zn',col='Sky Blue')
+boxplot(Boston$rm, main='rm',col='Sky Blue')
+boxplot(Boston$black, main='black',col='Sky Blue')
+```
+
+Как и было предсказано, мы видим много выбросов.
+
+## Посчитаем корреляцию между признаками.
+
+```{r}
+corr_matrix <- cor(Boston)
+corrplot.mixed(corr_matrix)
+```
+
+Мы видим крайне сильную корреляцию - 0,9 - между индексом доступности радиальных магистралей (rad) и полной ставкой налога на имущество (tax). Также мы можем видеть сильную отрицательную корреляцию между расстоянием до центров занятости (dis) и долей некоммерческого бизнеса (indus), концентрацией оксидов азота (nox), долей старых домов (age); и между более низким статусом населения (lstat) и средней стоимостью домов, занимаемых владельцами (medv). И сильная положительная корреляция между indus и nox, indus и tax, nox и age, rm и medv.
+
+Также мы видим мультиколлинеарность некоторых предикторов, что может стать проблемой при построении модели, поскольку даже небольшие изменения в любом из предикторов могут вызвать большие изменения в моделях.
+
+### 4. Построение модели, прогнозирующей стоимость дома
+Посмотрим распределение переменной medv.
+```{r}
+qplot(x=medv,data=Boston,geom='histogram')
+
+```
+
+На данной гистограмме распределения средней цены дома мы видим, что данные немного смещены влево. Однако, линейную регрессию нельзя строить на ненормально распределенных данных. Чтобы исправить распределние прологарифмируем параметр medv.
+
+```{r}
+qplot(x=log(medv),data=Boston,geom='histogram')
+```
+
+После логарифмирования у нас остался небольшой сдвиг вправо, но распределение выглядит более "нормальным".
+
+Построение модели.
+```{r}
+model1 = lm(log(medv)~., data= Boston)
+summary(model1)
+
+par(mfrow=c(2,2))
+plot(model1)
+```
+
+Полная модель:
+
++ R-squared составляет 0.7841
+
++ F-statistic составляет 142.1
+
+Полная модель объясняет 78% изменчивости. Протестируем, есть ли параметры, которые незначительно влияют на модель. Для этого воспользуемся критерием Акаике.
+
+```{r}
+step = stepAIC(model1,direction = 'both')
+
+step$anova
+
+step_model = lm(log(medv) ~ crim + zn + chas + nox + rm + dis + rad + tax + ptratio + black + lstat,data=Boston)
+
+summary(step_model)
+```
+
+Новая модель:
+
++ R-squared составляет 0.7844
+
++ F-statistic составляет 168.1
+
+С помощью функции stepAIC мы последовательно рассчитали AIC для некоторых моделей и удалили предикторы, которые незначительно влияют на модель, что позволило несколько увеличить R-squared.
+
+#### Диагностика модели
+Проверим на мультиколлениарность, которую мы заметили ранее.
+```{r}
+library(car)
+vif(step_model)
+
+```
+
+Удалим предикторы с VIF > 5.
+
+```{r}
+model2 = lm(log(medv)~crim+zn+chas+nox+dis+ptratio+black+lstat,data=Boston)
+summary(model2)
+plot(model2)
+```
+
+Новая модель:
+
++ R-squared составляет 0.7545
++ F-statistic составляет 195
+
+Не смотря на то, что мы устранили мульитколлинеанрость и незначимые предикторы, предсказания модели стали немного хуже (75%).
+
+```{r}
+vif(model2)
+
+```
+
+Проведем диагностику модели
+```{r}
+# Assumption - mean of the residuals is = 0 
+mean(model2$residuals)
+
+```
+
+```{r}
+plot(model2$residuals)
+abline(h=0,col='red')
+```
+
+Остатки распределены более меннее нормально.
+
+Найдем выбросы.
+```{r}
+
+outlierTest(model2)
+```
+
+У нас есть два выброса, которые можно удалить.
+
+```{r}
+Boston_1 = Boston[-c(413,372),,drop=T]# drop the points
+row.names(Boston_1)=1:nrow(Boston_1)
+
+model3 = lm(log(medv) ~ crim + zn + chas + nox + rm + dis +
+              ptratio + black + lstat,data=Boston_1)
+par(mfrow=c(2,2))
+plot(model3)
+```
+
+```{r}
+summary(model3)
+```
+
+Новая модель:
+
+* R-squared составляет 0.7899
+
+* F-statistic составляет 211.1
+
+После удаления выбросов, мы видим, что значение R-squared увеличилось. Однако один из параметров перестал быть значимым. 
+
+```{r}
+model3_step=stepAIC(model3,Boston_1,direction = 'both')
+```
+
+```{r}
+model3_step$anov
+```
+
+```{r}
+summary(model3_step)
+```
+
+Новая модель:
+
+* R-squared составляет 0.7899
+
+* F-statistic составляет 211.1
+
+```{r}
+par(mfrow=c(2,2))
+plot(model3_step)
+```
+
+Мы видим, что нет разницы между model3 и model3_step, а также Р-квадрат имеет одинаковые значения. Теперь можем проанализировать выбросы модели.
+
+```{r}
+outlierTest(model3)
+```
+
+Мы видим 2 выбросы, которые мы можем выбросить и протестировать модель еще раз. 
+```{r}
+Boston_2=Boston_1[-c(371,400,373),,drop=T]
+row.names(Boston_2)=1:nrow(Boston_2)
+model4 = lm(log(medv) ~ crim + zn + chas + nox + rm + dis +
+                 tax + ptratio + black + lstat,data=Boston_2)
+summary(model4)
+```
+
+Новая модель:
+
+* R-squared составляет 0.7929
+
+* F-statistic составляет 192.4
+
+```{r}
+par(mfrow=c(2,2))
+plot(model4)
+```
+
+Мы видим, что мы снова увеличили мощность нашей модели, но потеряли значение по другой переменной. Мы можем запустить stepAIC и посмотреть, сможем ли мы его удалить.
+
+```{r}
+outlierTest(model4)
+```
+
+Мы видим 4 выбросы, которые мы можем выбросить и протестировать модель еще раз.
+```{r}
+Boston_3 =Boston_2[-c(369,371,372,398),,drop=T]
+row.names(Boston_3)=1:nrow(Boston_3)
+model5 = lm(log(medv) ~ crim + zn + chas + nox + rm + dis +
+                 tax + ptratio + black + lstat,data=Boston_3)
+summary(model5)
+```
+
+Новая модель:
+
+* R-squared составляет 0.8163
+
+* F-statistic составляет 221.4
+```{r}
+par(mfrow=c(2,2))
+plot(model5)
+```
+
+Мы улучшили еще немного нашу модель и теперь она объясняет 82% изменчивости. 
+
+### Финальный анализ модели.
+```{r}
+residuals <- data.frame('Residuals' = model5$residuals)
+res_hist <- ggplot(residuals, aes(x=Residuals)) + geom_histogram(color='black', fill='skyblue') + ggtitle('Histogram of Residuals')
+res_hist
+```
+
+Остатки распределены нормально.
+```{r}
+plot(model5, col='Sky Blue')
+```
+
+```{r}
+test$predicted.medv <- predict(model5,test)
+pl1 <-test %>% 
+  ggplot(aes(medv,predicted.medv)) +
+  geom_point(alpha=0.5) + 
+  stat_smooth(aes(colour='black')) +
+  xlab('Значения medv') +
+  ylab('Предсказанные значения medv') +
+  theme_bw()
+
+ggplotly(pl1)
+```
