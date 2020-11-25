@@ -18,6 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r packages, include=FALSE}
+library(car)
 library(corrplot) #for visualisation of correlation
 library(lattice) #for visualisation
 library(ggplot2) #for visualisation
@@ -34,7 +35,7 @@ theme_set(theme_bw())
 ```{r}
 numberOfNA <- length(which(is.na(Boston)==T))
 if(numberOfNA>0) {
-  housing <- Boston[complete.cases(Boston),]
+  Boston <- Boston[complete.cases(Boston),]
 }
 ```
 
@@ -50,7 +51,8 @@ test <- subset(Boston,split==FALSE)
 Посмотрим структуру датасета и базовую статистику.
 ```{r}
 str(Boston)
-
+# сделаем наличие реки фактором 
+Boston$chas <- as.factor(Boston$chas)
 summary(Boston)
 ```
 
@@ -94,13 +96,18 @@ qplot(x=log(medv),data=Boston,geom='histogram')
 
 После логарифмирования у нас остался небольшой сдвиг вправо, но распределение выглядит более "нормальным".
 
-Построение модели.
+### Задание 1. Построение полной модели.
+Стандартизируем предикторы:
 ```{r}
-model1 = lm(log(medv)~., data= Boston)
-summary(model1)
+stand_Boston <- Boston %>% mutate_at(c('crim', 'zn', 'indus', 'nox', 'age', 'dis', 'tax', 'ptratio', 'black', 'lstat'), scale)
+```
+
+```{r}
+model1_stand = lm(log(medv)~., data= stand_Boston)
+summary(model1_stand)
 
 par(mfrow=c(2,2))
-plot(model1)
+plot(model1_stand)
 ```
 
 Полная модель:
@@ -112,11 +119,92 @@ plot(model1)
 Полная модель объясняет 78% изменчивости. Протестируем, есть ли параметры, которые незначительно влияют на модель. Для этого воспользуемся критерием Акаике.
 
 ```{r}
-step = stepAIC(model1,direction = 'both')
+step = stepAIC(model1_stand,direction = 'both')
 
 step$anova
 
-step_model = lm(log(medv) ~ crim + zn + chas + nox + rm + dis + rad + tax + ptratio + black + lstat,data=Boston)
+step_model = lm(log(medv) ~ crim + zn + chas + nox + rm + dis + rad + tax + ptratio + black + lstat,data=stand_Boston)
+
+summary(step_model)
+```
+
+Новая модель:
+
++ R-squared составляет 0.7864
+
++ F-statistic составляет 104.3
+
+С помощью функции stepAIC мы последовательно рассчитали AIC для некоторых моделей и удалили предикторы, которые незначительно влияют на модель, что позволило несколько увеличить R-squared.
+
+### Задание 2. Проведем диагностику полной модели.
+1. Проверим на мультиколлениарность, которую мы заметили ранее.
+```{r}
+library(car)
+vif(step_model)
+```
+
+Для дальнейшей работы нужно удалить предикторы с VIF > 5 (rad, tax).
+
+2. Проверим остатки:
+```{r}
+plot(step_model$residuals)
+abline(h=0,col='red')
+```
+Мы видим что остатки распределены ненормально. 
+
+3. Найдем выбросы:
+```{r}
+
+outlierTest(step_model)
+```
+
+Мы видим 4 выброса, влияющие на нашу модель.
+
+Наибольший вклад вносит переменная lstat - -0.207344.
+
+### Задание 3. Постройте график предсказаний стоимости от переменной, которая обладает
+наибольшим по модулю коэффициентом.
+
+
+```{r}
+mod_hi <- lm(medv ~ as.numeric(lstat), data = stand_Boston)
+
+test$predicted.medv <- predict(mod_hi,test)
+pl1 <-test %>% 
+  ggplot(aes(medv,predicted.medv)) +
+  geom_point(alpha=0.5) + 
+  stat_smooth(aes(colour='black')) +
+  xlab('Значения medv') +
+  ylab('Предсказанные значения medv') +
+  theme_bw()
+
+ggplotly(pl1)
+```
+
+
+
+### Дополнительное задание.
+Продолжим преобразовывать модель на НЕстандартизованных данных.
+```{r}
+model1_stand = lm(log(medv)~., data= stand_Boston)
+summary(model1_stand)
+
+par(mfrow=c(2,2))
+plot(model1_stand)
+```
+
+Новая модель:
+
++ R-squared составляет 0.7841
+
++ F-statistic составляет 142.1
+
+```{r}
+step = stepAIC(model1_stand,direction = 'both')
+
+step$anova
+
+step_model = lm(log(medv) ~ crim + zn + chas + nox + rm + dis + rad + tax + ptratio + black + lstat,data=stand_Boston)
 
 summary(step_model)
 ```
@@ -127,23 +215,27 @@ summary(step_model)
 
 + F-statistic составляет 168.1
 
-С помощью функции stepAIC мы последовательно рассчитали AIC для некоторых моделей и удалили предикторы, которые незначительно влияют на модель, что позволило несколько увеличить R-squared.
-
-#### Диагностика модели
-Проверим на мультиколлениарность, которую мы заметили ранее.
 ```{r}
 library(car)
 vif(step_model)
-
 ```
 
-Удалим предикторы с VIF > 5.
+```{r}
+outlierTest(step_model)
+```
+
+У нас есть 4 выброса, которые мы удалим.
+
 
 ```{r}
+Boston_1 = Boston[-c(413,372, 373, 402),,drop=T]# drop the points
+row.names(Boston_1)=1:nrow(Boston_1)
+
 model2 = lm(log(medv)~crim+zn+chas+nox+dis+ptratio+black+lstat,data=Boston)
 summary(model2)
 plot(model2)
 ```
+
 
 Новая модель:
 
@@ -154,7 +246,6 @@ plot(model2)
 
 ```{r}
 vif(model2)
-
 ```
 
 Проведем диагностику модели
@@ -173,7 +264,6 @@ abline(h=0,col='red')
 
 Найдем выбросы.
 ```{r}
-
 outlierTest(model2)
 ```
 
@@ -275,7 +365,8 @@ par(mfrow=c(2,2))
 plot(model5)
 ```
 
-Мы улучшили еще немного нашу модель и теперь она объясняет 82% изменчивости. 
+Мы улучшили еще немного нашу модель и теперь она объясняет 82% изменчивости. Нет предела совершенству, меня устраивает модель, объясняющая 82% изменчивости. 
+Наибольший вклад вносят параметры: количество комнат, количество оксида азота, отношение учеников к учителям. Так что я бы посоветовала клиенту, строить большие дома рядом со школой и с парком неподалеку. 
 
 ### Финальный анализ модели.
 ```{r}
@@ -301,3 +392,5 @@ pl1 <-test %>%
 
 ggplotly(pl1)
 ```
+
+### 
