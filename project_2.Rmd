@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 * [caTools](https://cran.r-project.org/web/packages/caTools/index.html)
 * [plotly](https://cran.r-project.org/web/packages/plotly/index.html)
 * [MASS](https://cran.r-project.org/web/packages/MASS/index.html)
+* [tidyr](https://www.rdocumentation.org/packages/tidyr/versions/0.8.3)
 
 
 ```{r packages, include=FALSE}
@@ -26,6 +27,7 @@ library(caTools) #for splittind data into testing and training data
 library(dplyr) #manipulating dataframe
 library(plotly) #converting ggplot to plotly
 library(MASS)
+library(tidyr) #for visualisation
 
 theme_set(theme_bw())
 ```
@@ -51,8 +53,7 @@ test <- subset(Boston,split==FALSE)
 Посмотрим структуру датасета и базовую статистику.
 ```{r}
 str(Boston)
-# сделаем наличие реки фактором 
-Boston$chas <- as.factor(Boston$chas)
+
 summary(Boston)
 ```
 
@@ -77,9 +78,26 @@ corr_matrix <- cor(Boston)
 corrplot.mixed(corr_matrix)
 ```
 
-Мы видим крайне сильную корреляцию - 0,9 - между индексом доступности радиальных магистралей (rad) и полной ставкой налога на имущество (tax). Также мы можем видеть сильную отрицательную корреляцию между расстоянием до центров занятости (dis) и долей некоммерческого бизнеса (indus), концентрацией оксидов азота (nox), долей старых домов (age); и между более низким статусом населения (lstat) и средней стоимостью домов, занимаемых владельцами (medv). И сильная положительная корреляция между indus и nox, indus и tax, nox и age, rm и medv.
+Из корреляционной матрицы можно сделать следующие наблюдения:
 
-Также мы видим мультиколлинеарность некоторых предикторов, что может стать проблемой при построении модели, поскольку даже небольшие изменения в любом из предикторов могут вызвать большие изменения в моделях.
+1. Средняя стоимость домов, занимаемых владельцами, увеличивается по мере увеличения среднего количества комнат на жилище и уменьшается, если процент населения с более низким статусом в этом районе увеличивается.
+2. Концентрация NOx или оксидов азота (ppm) возрастает с увеличением доли акров, не относящихся к розничной торговле, на город и доли жилых единиц, построенных до 1940 года.
+3. rad и tax имеют сильную положительную корреляцию 0,91, что означает, что по мере увеличения доступности радиальных автомагистралей, полная ставка налога на имущество из расчета на $ 10 000 также увеличивается.
+4. crim тесно связан с переменными rad и tax, что означает, что по мере увеличения доступности радиальных автомагистралей увеличивается уровень преступности на душу населения.
+5. indus имеет сильную положительную корреляцию с NOx, что подтверждает мнение о высокой концентрации оксидов азота в промышленных зонах.
+
+## Визуализируем данные.
+```{r warning=FALSE}
+Boston %>%
+  gather(key, val, -medv) %>%
+  ggplot(aes(x = val, y = medv)) +
+  geom_point() +
+  stat_smooth(method = "lm", se = TRUE, col = "blue") +
+  facet_wrap(~key, scales = "free") +
+  theme_gray() +
+  ggtitle("Scatter plot of dependent variables vs Median Value (medv)") 
+```
+
 
 ### 4. Построение модели, прогнозирующей стоимость дома
 Посмотрим распределение переменной medv.
@@ -99,6 +117,8 @@ qplot(x=log(medv),data=Boston,geom='histogram')
 ### Задание 1. Построение полной модели.
 Стандартизируем предикторы:
 ```{r}
+# сделаем наличие реки фактором 
+Boston$chas <- as.factor(Boston$chas)
 stand_Boston <- Boston %>% mutate_at(c('crim', 'zn', 'indus', 'nox', 'age', 'dis', 'tax', 'ptratio', 'black', 'lstat'), scale)
 ```
 
@@ -140,14 +160,14 @@ summary(step_model)
 1. Проверим на мультиколлениарность, которую мы заметили ранее.
 ```{r}
 library(car)
-vif(step_model)
+vif(model1_stand)
 ```
 
 Для дальнейшей работы нужно удалить предикторы с VIF > 5 (rad, tax).
 
 2. Проверим остатки:
 ```{r}
-plot(step_model$residuals)
+plot(model1_stand$residuals)
 abline(h=0,col='red')
 ```
 Мы видим что остатки распределены ненормально. 
@@ -155,7 +175,7 @@ abline(h=0,col='red')
 3. Найдем выбросы:
 ```{r}
 
-outlierTest(step_model)
+outlierTest(model1_stand)
 ```
 
 Мы видим 4 выброса, влияющие на нашу модель.
@@ -186,11 +206,12 @@ ggplotly(pl1)
 ### Дополнительное задание.
 Продолжим преобразовывать модель на НЕстандартизованных данных.
 ```{r}
-model1_stand = lm(log(medv)~., data= stand_Boston)
+# сделаем полную модель на НЕстандартизованных данных
+model1 = lm(log(medv)~., data= Boston)
 summary(model1_stand)
 
 par(mfrow=c(2,2))
-plot(model1_stand)
+plot(model1)
 ```
 
 Новая модель:
@@ -200,11 +221,11 @@ plot(model1_stand)
 + F-statistic составляет 142.1
 
 ```{r}
-step = stepAIC(model1_stand,direction = 'both')
+step = stepAIC(model1,direction = 'both')
 
 step$anova
 
-step_model = lm(log(medv) ~ crim + zn + chas + nox + rm + dis + rad + tax + ptratio + black + lstat,data=stand_Boston)
+step_model = lm(log(medv) ~ crim + zn + chas + nox + rm + dis + rad + tax + ptratio + black + lstat,data=Boston)
 
 summary(step_model)
 ```
@@ -350,6 +371,7 @@ outlierTest(model4)
 ```{r}
 Boston_3 =Boston_2[-c(369,371,372,398),,drop=T]
 row.names(Boston_3)=1:nrow(Boston_3)
+Boston_3$chas <- as.factor(Boston_3$chas)
 model5 = lm(log(medv) ~ crim + zn + chas + nox + rm + dis +
                  tax + ptratio + black + lstat,data=Boston_3)
 summary(model5)
@@ -381,6 +403,12 @@ plot(model5, col='Sky Blue')
 ```
 
 ```{r}
+# пересчитаем тестовый датасет
+set.seed(123)
+split <- sample.split(Boston,SplitRatio = 0.75) #assigns booleans to a new coloumn based on the split ratio
+train <- subset(Boston,split==TRUE)
+test <- subset(Boston,split==FALSE)
+
 test$predicted.medv <- predict(model5,test)
 pl1 <-test %>% 
   ggplot(aes(medv,predicted.medv)) +
