@@ -1,0 +1,393 @@
+---
+title: "Проект №4. Экспрессия белков мышей с трисомией"
+output: html_document
+---
+Нам понадобятся следующие пакеты. 
+
+* [readxl](https://cran.r-project.org/web/packages/readxl/index.html)
+
+* [plyr](https://github.com/sampotts/plyr)
+
+* [tidyverse](https://cran.r-project.org/web/packages/tidyverse/index.html)
+
+* [dplyr](https://cran.r-project.org/web/packages/dplyr/index.html)
+
+* [VIM](https://cran.r-project.org/web/packages/VIM/index.html)
+
+* [mice](https://cran.r-project.org/web/packages/mice/index.html)
+
+* [zoo](https://cran.r-project.org/web/packages/zoo/index.html)
+
+* [ggplot2](https://cran.r-project.org/web/packages/ggplot2/index.html)
+
+* [corrplot](https://cran.r-project.org/web/packages/corrplot/index.html)
+
+* [plotly](https://cran.r-project.org/web/packages/plotly/index.html)
+
+* [caret](https://cran.r-project.org/web/packages/caret/index.html)
+
+* [Hmisc](https://cran.r-project.org/web/packages/Hmisc/index.html)
+
+* [car](https://cran.r-project.org/web/packages/car/index.html)
+
+* [multcomp](https://cran.r-project.org/web/packages/multcomp/index.html)
+
+* [vegan](https://cran.r-project.org/web/packages/vegan/index.html)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(include = TRUE)
+library(readxl)
+library(plyr)
+library(tidyverse)
+library(dplyr)
+library(mice)
+library(VIM)
+library(zoo)
+library(corrplot)
+library(caret)
+library(Hmisc)
+library(car)
+library(multcomp)
+library(vegan)
+library(plotly)
+
+setwd("~/Bioinf/stat")
+d <- read_excel("Data_Cortex_Nuclear.xls")
+```
+
+```{r include=FALSE}
+str(d)
+summary(d)
+```
+
+# 1. Описание датасета:
+
+### 1.1. Всего 72 мыши, у каждой по 15 измерений.
+
+### 1.2. Можно выделить 8 классов, которые различаются по генотипу (контроль, трисомия), лекарство (memantine (m) or saline (s)), поведение (context-shock (CS) or shock-context (SC)). Итого 8 классов: c-CS-s, c-CS-m, c-SC-s, c-SC-m, t-CS-s, t-CS-m, t-SC-s, t-SC-m.
+
+### 1.3. Мыши по группам не сбалансированы: в группах от 7 до 10 мышей. 
+
+c-CS-s: 9 mice
+c-CS-m: 10 mice
+c-SC-s: 9 mice
+c-SC-m: 10 mice
+
+t-CS-s: 7 mice
+t-CS-m: 9 mice
+t-SC-s: 9 mice
+t-SC-m: 9 mice
+
+### 1.4. Количество полных наблюдений:
+```{r}
+d <- d[,-1]
+
+aggr(d, sortVars=F, combined=T, bars=F, numbers=T, prop=F, sortCombs=T) #see NAs
+```
+
+
+Мы видим 3 наблюдения с NA в больше половине случаев, их я удалю. Всего 552 наблюдения с полной информацией. 
+```{r}
+d <- d[- (which(rowSums(is.na(d))>10)),] ##Exclude obs with many NAs
+print("Количество оставшихся NA")
+sort(colSums(is.na(d)),decreasing=T)[1:10]
+```
+
+# 2. Различия в уровне продукции BDNF_N в зависимости от класса.
+Посмотрим на pointrange.
+```{r message=FALSE, warning=FALSE}
+
+d_d <- d
+d_d$class <- as.factor(d_d$class)
+ggplot(d_d, aes(x = d_d$class, y = d_d$BDNF_N, colour = class)) +
+  labs(y = 'BDNF_N', x = 'Class') +
+    theme_light() +
+  stat_summary(geom = 'pointrange', fun.data = mean_cl_normal)
+```
+
+
+По графику видно, что группы из середины отличаются. Сделаем дисперсионный анализ
+```{r}
+# функция Anova из пакета car
+mod_1 <- lm(BDNF_N ~ class, data = d_d)
+m_anova <- Anova(mod_1)
+
+# встроенная функция
+m1 <- aov(d$BDNF_N ~ d$class, data = d_d)
+summary(m1)
+# просто сравнила функции - показывают одно и тоже :)
+
+```
+По данным дисперсионного анализа, мы видим, что уровень BDNF_N достоверно зависит от класса животного. 
+```{r}
+# Данные для графиков остатков
+mod_diag <- fortify(mod_1)
+# График расстояний Кука
+ggplot(mod_diag, aes(x = 1:nrow(mod_diag), y = .cooksd)) +
+geom_bar(stat = 'identity')
+```
+Остатки распределнены нормально.
+```{r}
+ggplot(mod_diag, aes(x = mod_diag$class, y = .stdresid)) + geom_boxplot()
+```
+
+Остатки по классам не различаются. 
+
+```{r}
+qqPlot(mod_1, id = FALSE)
+```
+
+Распределение очень близко к нормальному.
+
+Сделаем пост-хок тест, чтобы узнать, какие группы различаются. Я взяла тест Тюкей, поскольку он относительно не строгий и не слабый.
+```{r message=FALSE, warning=FALSE}
+posthoc <- glht(mod_1, linfct = mcp(class = "Tukey"))
+summary(posthoc)
+```
+Построим график, чтобы визуализировать результат (одинаковые буквы означают неразличающиеся группы)
+```{r}
+MyData <- data.frame(class = factor(levels(d_d$class), levels = levels(d_d$class)))
+MyData <- data.frame(MyData, predict(mod_1, newdata = MyData, interval = 'confidence'))
+
+
+ggplot(data = MyData, aes(x = class, y = fit)) +
+  geom_bar(stat = 'identity', aes(fill = class), width = 0.5) +
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.1)+
+labs(x = 'Class', y = 'Экспрессия белка BDNF_N') +
+geom_text(aes(y = 1.6, label = c('A', 'A', 'B', 'C', 'D', 'E', 'A', 'A')), colour = 'black', size = 5, position = position_stack(vjust = 0.5))+
+  theme(legend.position = 'none')
+```
+
+# 3. Попробовать построить линейную модель, способную предсказать уровень продукции белка ERBB4_N на основании данных о других белках в эксперименте
+
+Поскольку у нас около 75 белков, до построения модели, попробуем сократить количество анализируемых переменных. 
+### 1. Анализ на мультиколлинеарность.
+Попарно сравним коэффициент корреляции белков.
+```{r}
+m <- length(colnames(d))
+# Функция для расчета p-value для коэффициента корреляции (взято: http://www.sthda.com/english/wiki/visualize-correlation-matrix-using-correlogram)
+# mat : is a matrix of data
+# ... : further arguments to pass to the native R cor.test function
+cor.mtest <- function(mat, ...) {
+    mat <- as.matrix(mat)
+    n <- ncol(mat)
+    p.mat<- matrix(NA, n, n)
+    diag(p.mat) <- 0
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            tmp <- cor.test(mat[, i], mat[, j], ...)
+            p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+        }
+    }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+# matrix of the p-value of the correlation
+d <- as.data.frame(d)
+p.mat <- cor.mtest(d[,-c((m-3):m)])
+head(p.mat[, 1:5])
+```
+
+```{r}
+
+cor <- cor(d[,-c((m-3):m)],use = "pairwise.complete.obs")
+
+
+corrplot(cor, type = 'upper', p.mat = p.mat,
+         sig.level = 0.01, insig = 'blank', 
+         tl.col="black", tl.srt=45,
+         tl.cex = 0.4)
+```
+
+Данных очень много, поэтому крайне высока вероятность наличия мультиколлинеарности. Одним из признаков мультиколлениарности является высокая парная зависимость между малозначимыми переменными, поэтому найдем пары белков с наибольшей коллинеарностью и удалим одного из пары.
+
+```{r echo=FALSE}
+
+print("Number: Correlations between proteins > 0.8")
+sum(abs(cor) > 0.8)/2 + 0.5
+print("Number: Correlations between proteins > 0.5")
+sum(abs(cor) > 0.5)/2 + 0.5
+```
+87 белков из датасета имеют корреляцию больше 0,8. Удалим каждого из пары таких белков. 
+```{r}
+Var_na <- which(colSums(is.na(d))>0)
+d <- as.data.frame(d)
+cor_na <- cor(d[,-c(Var_na,(m-3):m)],d[,Var_na],use = "pairwise.complete.obs")
+d <- d[, which(! colnames(d)  %in% names(which(colSums(cor_na > 0.8) > 0)))]
+
+m <- length(colnames(d))
+Vars_Mcol <- findCorrelation(cor(d[,-((m-3):m)],
+                                 use = "pairwise.complete.obs"),0.8)
+d <- d[,- Vars_Mcol]
+```
+Осталось 54 белков. 
+```{r}
+m <- length(colnames(d))
+d <- as.data.frame(d)
+aov <- numeric()
+for( i in (1: (m-4))){
+aov[i] <- summary(aov(d[,i]~d$ERBB4_N))[[1]]$"Pr(>F)"[1]
+}
+print("number of protein variables which have a significant relationship to ERBB4_N")
+sum( aov < 0.05/length(aov))
+Vars <- which(aov < 0.05/length(aov))
+d <- d[,c(Vars,(m-3):m)]
+```
+Итого осталось 37 белков, которые значимо коррелируют с ERBB4_N. 
+Для построения обычной линейной модели предикторов слишком много, сделаем РСА.
+```{r message=FALSE, warning=FALSE}
+which(colnames(d)=='ERBB4_N')
+m <- length(colnames(d))
+# уберем колонки c не белками
+prot_only <- as.matrix(d[,c(-1,-23, -(m-3):-m)])
+# стандартизируем переменные
+# Function to standardize numeric variables
+z_numeric_vars<-function(data_frame) {
+  for (n in names(data_frame)) { 
+    if (class(data_frame[[n]]) == "numeric" | class(data_frame[[n]]) == "integer"){
+      var = paste(n,"_z", sep="")
+      data_frame[[var]] <- scale(data_frame[[n]], center = TRUE, scale = TRUE)
+      data_frame[[n]] = NULL
+    }
+  }
+  data_frame
+}
+prot_st <- z_numeric_vars(prot_only)
+# заменим NA на среднее
+prot <- na.aggregate(prot_st)
+```
+Построим ординацию
+```{r include=FALSE}
+prot <- as.matrix(prot)
+ord <- rda(prot, scale = TRUE)
+# summary(ord) - занимает очень много места
+```
+Построим график собственных чисел
+```{r}
+screeplot(ord, bstick = TRUE, type = 'lines')
+```
+```{r echo=FALSE}
+sum(eigenvals(ord)[1:3])/sum(eigenvals(ord)) * 100
+```
+Оставим первые 3 компоненты, они объясняют 53% изменчивости.
+```{r include=FALSE}
+scores(ord, display = 'species', choices = c(1, 2, 3), scaling = 'species', correlation = TRUE)
+```
+Построим факторные нагрузки
+```{r}
+biplot(ord, scaling = 'species', correlation = TRUE,
+main = 'PCA - species scaling', display = 'species')
+```
+Построим график для первых трех компонент. 
+```{r message=FALSE, warning=FALSE}
+df_scores <- data.frame(d, scores(ord, display = 'sites', choices = c(1, 2, 3), scaling = 'sites'))
+
+plot_ly(df_scores, x = ~PC1, y = ~PC2, z = ~PC3, color = df_scores$class, size = 0.5)
+```
+```{r}
+prot_1 <- as.data.frame(prot)
+ERBB4_N <- scale(d$ERBB4_N)
+new_d <- as.data.frame(cbind(ERBB4_N, scores(ord, display = 'sites', choices = c(1, 2, 3), scaling = 'sites'))) 
+
+lmod <- lm(V1 ~ ., data = new_d)
+summary(lmod)
+```
+Модель объясняет 59% изменчивости. 
+
+Проверка на мультиколлинеарность.
+```{r}
+sqrt(vif(lmod))>2
+```
+Мультиколлинеарности нет.
+
+
+Однако, vif выдаёт такой странный результат. (если можно, поясни, пожалуйста, в каком месте я ошиблась или что с этим делать)
+```{r}
+vif(lmod)
+```
+
+Проверим остатки на нормальность
+```{r message=FALSE, warning=FALSE}
+qqPlot(lmod, labels = row.names(states), simulate = TRUE, main = 'График Q-Q')
+```
+Есть какие-то выбросы, но в целом похоже на нормальное распределение. 
+
+Проверим остатки на линейность.
+```{r message=FALSE, warning=FALSE}
+crPlots((lmod))
+```
+Если нелинейные связи есть, то они не очень большие. 
+
+Построим визуализацию.
+```{r}
+new_data <- data.frame(ERBB4_N = seq(min(new_d$V1), max(new_d$V1), length.out = 50),
+ PC1 = mean(new_d$PC1),
+ PC2 = mean(new_d$PC2),
+ PC3 = mean(new_d$PC3))
+new_data$predicted <- predict(lmod, newdata = new_data) # предсказанные значения
+new_data$SE <- predict(lmod, newdata = new_data, se.fit = TRUE)$se.fit # стандартные ошибки
+new_data$upper <- new_data$predicted + 2 * new_data$SE # верхняя граница доверительной области
+new_data$lower <- new_data$predicted - 2 * new_data$SE # нижняя граница доверительной области
+```
+Визуализируем влияние первой компоненты.
+```{r}
+ggplot(data = new_data, aes(x = ERBB4_N, y = predicted)) +
+ geom_ribbon(data = new_data, aes(ymin = lower, ymax = upper), alpha = 0.3) +
+  geom_line(color = 'blue', size = 1) +
+ geom_point(data = new_d, aes(x = ERBB4_N, y = PC1)) +
+ labs(y = 'PC1', x = 'ERBB4_N')
+
+```
+Построить модель не получилось, облако точек явно меняется по другой закономерности. 
+
+# Задание 4. Построить РСА.
+```{r}
+m <- length(colnames(d))
+
+# уберем колонки c не белками
+prot_only <- as.matrix(d[,c(-1, -(m-3):-m)])
+# стандартизируем переменные
+# Function to standardize numeric variables
+z_numeric_vars<-function(data_frame) {
+  for (n in names(data_frame)) { 
+    if (class(data_frame[[n]]) == "numeric" | class(data_frame[[n]]) == "integer"){
+      var = paste(n,"_z", sep="")
+      data_frame[[var]] <- scale(data_frame[[n]], center = TRUE, scale = TRUE)
+      data_frame[[n]] = NULL
+    }
+  }
+  data_frame
+}
+prot_st <- z_numeric_vars(prot_only)
+# заменим NA на среднее
+prot <- na.aggregate(prot_st)
+```
+Построим ординацию
+```{r include=FALSE}
+ord <- rda(prot, scale = TRUE)
+summary(ord)
+```
+Построим график собственных чисел
+```{r}
+screeplot(ord, bstick = TRUE, type = 'lines')
+```
+```{r echo=FALSE}
+sum(eigenvals(ord)[1:3])/sum(eigenvals(ord)) * 100
+```
+Оставим первые 3 компоненты, они объясняют 53% изменчивости.
+```{r include=FALSE}
+scores(ord, display = 'species', choices = c(1, 2, 3), scaling = 'species', correlation = TRUE)
+```
+Построим факторные нагрузки
+```{r}
+biplot(ord, scaling = 'species', correlation = TRUE,
+main = 'PCA - species scaling', display = 'species')
+```
+Построим график для первых трех компонент. 
+```{r message=FALSE, warning=FALSE}
+df_scores <- data.frame(d, scores(ord, display = 'sites', choices = c(1, 2, 3), scaling = 'sites'))
+
+plot_ly(df_scores, x = ~PC1, y = ~PC2, z = ~PC3, color = df_scores$class, size = 0.5)
+```
+
+
